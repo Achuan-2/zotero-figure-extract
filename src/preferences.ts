@@ -1,5 +1,5 @@
-import { BaiduClient } from './baidu';
-import { getCredentials, saveCredentials, getSwitches, setSwitches, makeTransport } from './platform';
+import { OCRClient } from './ocr';
+import { host, getCredentials, saveCredentials, getProvider, setProvider, getSwitches, setSwitches, makeTransport } from './platform';
 import { bindPreferences } from './preferences-ui';
 
 const mounted = new WeakSet<Element>();
@@ -8,10 +8,11 @@ const mounted = new WeakSet<Element>();
 export function init(root: Element): void {
   if (mounted.has(root)) return;
   mounted.add(root);
-  const client = new BaiduClient(makeTransport(), getCredentials);
+  const client = new OCRClient(makeTransport(), getProvider, getCredentials);
   bindPreferences(root, {
-    getCredentials, saveCredentials, getSwitches, setSwitches,
-    verify: signal => client.verify(signal),
+    getCredentials, saveCredentials, getProvider, setProvider, getSwitches, setSwitches,
+    verify: (provider, signal) => client.verify(provider, signal),
+    openExternal: url => host.zotero.launchURL(url),
     clearToken: () => client.clearToken()
   });
 }

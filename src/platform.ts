@@ -2,6 +2,8 @@
  * Core services and the UI consume explicit typed contracts. */
 import { abortIfNeeded, type Rect, type Region, type Result, type Switches, defaults } from './domain';
 import type { Credentials, Transport } from './baidu';
+import { defaultProvider, isProvider, type Provider } from './providers';
+import type { HTTPRequest, HTTPTransport } from './http';
 
 // Gecko and Zotero runtime objects are supplied by bootstrap.js, not Node.js.
 declare const Zotero: any;
@@ -47,9 +49,23 @@ export interface RenderedPage {
 
 export const host = {
   zotero: Zotero,
-  mainWindow: () => Zotero.getMainWindow() as Window & { openDialog: (...args: any[]) => Window; Zotero_Tabs: any; XMLHttpRequest: typeof XMLHttpRequest },
+  mainWindow: () => Zotero.getMainWindow() as Window & { openDialog: (...args: any[]) => Window; Zotero_Tabs: any;
+    XMLHttpRequest: typeof XMLHttpRequest; FormData: typeof FormData; Blob: typeof Blob; DOMParser: typeof DOMParser },
   wait: () => Promise.all([Zotero.initializationPromise, Zotero.unlockPromise, Zotero.uiReadyPromise]),
 };
+
+/** Make a self-contained sidebar document: content readers cannot load chrome HTML. */
+export async function loadSidebarMarkup(): Promise<string> {
+  const [markup, css] = await Promise.all([
+    Zotero.File.getContentsFromURLAsync('chrome://figureextract/content/sidebar.xhtml'),
+    Zotero.File.getContentsFromURLAsync('chrome://figureextract/content/style.css')
+  ]);
+  const document = new (host.mainWindow().DOMParser)().parseFromString(markup, 'text/html');
+  const style = document.createElement('style');
+  style.textContent = css;
+  document.querySelector('link[rel="stylesheet"]')?.replaceWith(style);
+  return '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+}
 
 export function getSwitches(): Switches {
   return Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, Zotero.Prefs.get(PREF_PREFIX + key, true) ?? value])) as Switches;
@@ -58,24 +74,38 @@ export function setSwitches(switches: Switches): void {
   for (const key of Object.keys(defaults) as (keyof Switches)[]) Zotero.Prefs.set(PREF_PREFIX + key, switches[key], true);
 }
 
-export function getCredentials(): Credentials {
-  const login = Services.logins.findLogins(LOGIN_ORIGIN, null, LOGIN_REALM)[0];
-  return login ? { apiKey: login.username, secretKey: login.password } : { apiKey: '', secretKey: '' };
+export function getProvider(): Provider {
+  const value = Zotero.Prefs.get(PREF_PREFIX + 'provider', true);
+  return isProvider(value) ? value : defaultProvider;
 }
-export async function saveCredentials(value: Credentials): Promise<void> {
-  const current = Services.logins.findLogins(LOGIN_ORIGIN, null, LOGIN_REALM)[0];
-  if (!value.apiKey.trim() && !value.secretKey.trim()) {
+export function setProvider(value: Provider): void {
+  if (!isProvider(value)) throw new Error('不支持的 OCR 接口');
+  Zotero.Prefs.set(PREF_PREFIX + 'provider', value, true);
+}
+function loginRealm(provider: Provider): string { return provider === 'aistudio' ? 'AI Studio PaddleOCR' : LOGIN_REALM; }
+export function getCredentials(provider: Provider = getProvider()): Credentials {
+  const login = Services.logins.findLogins(LOGIN_ORIGIN, null, loginRealm(provider))[0];
+  if (!login) return { apiKey: '', secretKey: '' };
+  return provider === 'aistudio' ? { apiKey: login.password, secretKey: '' } : { apiKey: login.username, secretKey: login.password };
+}
+export async function saveCredentials(value: Credentials, provider: Provider = getProvider()): Promise<void> {
+  const realm = loginRealm(provider);
+  const current = Services.logins.findLogins(LOGIN_ORIGIN, null, realm)[0];
+  if (!value.apiKey.trim() && (provider === 'aistudio' || !value.secretKey.trim())) {
     if (current) Services.logins.removeLogin(current);
     return;
   }
-  if (!value.apiKey.trim() || !value.secretKey.trim()) throw new Error('API Key 和 Secret Key 都需要填写');
+  if (!value.apiKey.trim() || (provider === 'baidu' && !value.secretKey.trim())) {
+    throw new Error(provider === 'baidu' ? 'API Key 和 Secret Key 都需要填写' : '请填写 AI Studio API Key');
+  }
   const login = Components.classes['@mozilla.org/login-manager/loginInfo;1'].createInstance(Components.interfaces.nsILoginInfo);
-  login.init(LOGIN_ORIGIN, null, LOGIN_REALM, value.apiKey.trim(), value.secretKey.trim(), '', '');
+  login.init(LOGIN_ORIGIN, null, realm, provider === 'aistudio' ? 'access-token' : value.apiKey.trim(),
+    provider === 'aistudio' ? value.apiKey.trim() : value.secretKey.trim(), '', '');
   if (current) Services.logins.modifyLogin(current, login);
   else await Services.logins.addLoginAsync(login);
 }
 
-export function makeTransport(): Transport {
+export function makeTransport(): Transport & HTTPTransport {
   function request(method: 'GET' | 'POST', url: string, values: Record<string, string> | undefined, signal: AbortSignal): Promise<unknown> {
     return new Promise((resolve, reject) => {
       abortIfNeeded(signal);
@@ -105,6 +135,43 @@ export function makeTransport(): Transport {
     });
   }
   return {
+    request: (options: HTTPRequest, signal: AbortSignal) => new Promise((resolve, reject) => {
+      abortIfNeeded(signal);
+      const win = host.mainWindow();
+      const xhr = new win.XMLHttpRequest();
+      const onAbort = () => xhr.abort();
+      const finish = (error?: Error) => {
+        signal.removeEventListener('abort', onAbort);
+        if (signal.aborted) reject(new Error('操作已取消'));
+        else if (error) reject(error);
+        else resolve(xhr.response);
+      };
+      xhr.open(options.method, options.url, true);
+      xhr.responseType = options.response;
+      xhr.timeout = 120000;
+      for (const [key, value] of Object.entries(options.headers ?? {})) xhr.setRequestHeader(key, value);
+      xhr.onload = () => finish(xhr.status < 200 || xhr.status >= 300
+        ? new Error(`OCR 请求失败（HTTP ${xhr.status}），请检查所选接口的凭据、权限与额度`)
+        : options.response === 'json' && (!xhr.response || typeof xhr.response !== 'object')
+          ? new Error('OCR 返回了无效的 JSON 响应') : undefined);
+      xhr.onerror = () => finish(new Error('OCR 请求失败，请检查网络'));
+      xhr.ontimeout = () => finish(new Error('OCR 请求超时，请稍后重试'));
+      xhr.onabort = () => finish(new Error('操作已取消'));
+      signal.addEventListener('abort', onAbort, { once: true });
+      try {
+        let body: FormData | null = null;
+        if (options.body) {
+          body = new win.FormData();
+          for (const [key, value] of Object.entries(options.body.fields)) body.append(key, value);
+          const decoded = win.atob(options.body.file.base64);
+          const bytes = Uint8Array.from(decoded, char => char.charCodeAt(0));
+          body.append('file', new win.Blob([bytes], { type: options.body.file.type }), options.body.file.name);
+        }
+        // Let the browser generate the multipart boundary. Do not manually set Content-Type.
+        xhr.send(body);
+        if (signal.aborted) onAbort();
+      } catch { finish(new Error('无法发送 OCR 请求，请检查页面数据与网络')); }
+    }),
     post: (url, values, signal) => request('POST', url, values, signal),
     get: (url, signal) => request('GET', url, undefined, signal),
     delay: (ms, signal) => new Promise((resolve, reject) => {

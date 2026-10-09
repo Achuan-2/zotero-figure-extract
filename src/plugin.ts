@@ -1,39 +1,54 @@
-import { BaiduClient } from './baidu';
+import { OCRClient } from './ocr';
 import { ExtractionService } from './extraction';
+import { ReaderEntryManager } from './reader-entry';
 import { labels, parsePageRange, type Result } from './domain';
-import type { DialogAPI, DialogArguments, RunOptions } from './contracts';
+import type { ExtractionAPI, RunOptions } from './contracts';
+import { bindExtractionUI } from './ui';
 import {
-  host, PLUGIN_ID, getCredentials, saveCredentials, getSwitches, setSwitches,
-  makeTransport, readerDocument, liveReader, renderPage, cropRegion, sourceStamp, storeDirectory,
+  host, PLUGIN_ID, getCredentials, saveCredentials, getProvider, setProvider, getSwitches, setSwitches,
+  makeTransport, loadSidebarMarkup, readerDocument, liveReader, renderPage, cropRegion, sourceStamp, storeDirectory,
   readJSON, writeJSON, saveImage, saveFile, copyText, annotate, type Reader
 } from './platform';
 
-const client = new BaiduClient(makeTransport(), getCredentials);
+const client = new OCRClient(makeTransport(), getProvider, getCredentials);
 const menus = new Map<Window, Element[]>();
-const windows = new Map<number | 'settings', Window>();
 const services = new Map<number, ExtractionService>();
 const activeTasks = new Set<Promise<unknown>>();
 const verificationControllers = new Set<AbortController>();
-const toolbarButtons = new Set<Element>();
+const readerEntries = new ReaderEntryManager(async (reader, doc) => {
+  const api = await createAPI(reader);
+  return bindExtractionUI(doc, api);
+}, loadSidebarMarkup, showError);
 let started = false;
 let preferencesPaneID: string | undefined;
 
 function showError(error: unknown): void {
   host.zotero.alert(host.mainWindow(), 'Zotero Figure Extract', error instanceof Error ? error.message : String(error));
 }
-function launch(reader?: Reader, settingsOnly = false): void {
-  void openDialog(reader, settingsOnly).catch(showError);
+function launch(reader?: Reader): void {
+  void (async () => {
+    reader ??= await selectedReader();
+    await reader._initPromise;
+    if (started) readerEntries.open(reader);
+  })().catch(showError);
 }
 
-function onToolbar({ reader, doc, append }: { reader: Reader; doc: Document; append: (node: Element) => void }): void {
+function onReaderReady({ reader, doc }: { reader: Reader; doc: Document }): void {
+  // Observe reader readiness only; never append a toolbar button.
+  readerEntries.attach(reader, doc);
+}
+
+async function attachExistingReader(reader: Reader): Promise<void> {
   if (reader.type !== 'pdf') return;
-  const button = doc.createElement('button');
-  button.className = 'toolbar-button figureextract-button';
-  button.textContent = '图表公式';
-  button.title = 'PaddleOCR-VL 1.6：提取图、表、公式';
-  button.addEventListener('click', () => launch(reader));
-  append(button);
-  toolbarButtons.add(button);
+  try {
+    await reader._initPromise;
+    if (!started) return;
+    const doc = reader._iframeWindow?.document as Document | undefined;
+    if (doc) readerEntries.attach(reader, doc);
+  } catch (error) {
+    // A reader may be closed while its initialization is still pending.
+    host.zotero.logError(error);
+  }
 }
 
 async function selectedReader(): Promise<Reader> {
@@ -73,36 +88,35 @@ function serviceFor(reader: Reader): ExtractionService {
   return service;
 }
 
-async function openDialog(reader: Reader | undefined, settingsOnly: boolean): Promise<void> {
-  if (!started) return;
-  if (!settingsOnly) {
-    reader ??= await selectedReader();
-    await reader._initPromise;
-    await reader._internalReader?._primaryView?.initializedPromise;
-  }
-  if (!started) return;
-  const attachment = reader?._item;
-  const key = settingsOnly ? 'settings' : attachment!.id;
-  const previous = windows.get(key);
-  if (previous && !previous.closed) { previous.focus(); return; }
-  const app = reader ? readerDocument(reader) : undefined;
-  const service = reader ? serviceFor(reader) : undefined;
+async function createAPI(reader: Reader): Promise<ExtractionAPI> {
+  await reader._initPromise;
+  await reader._internalReader?._primaryView?.initializedPromise;
+  const attachment = reader._item;
+  const app = readerDocument(reader);
+  const service = serviceFor(reader);
   const getReader = async (): Promise<Reader> => {
     if (!attachment) throw new Error('请先打开一个 PDF');
     return host.zotero.Reader.open(attachment.id);
   };
-  const api: DialogAPI = {
-    title: attachment?.attachmentFilename ?? '百度 OCR 设置',
+  const api: ExtractionAPI = {
+    title: attachment?.attachmentFilename ?? 'OCR 接口设置',
     pageCount: app?.pdfDocument.numPages ?? 0,
     currentPage: app?.pdfViewer.currentPageNumber ?? 1,
-    getSwitches, setSwitches, getCredentials,
-    saveCredentials: async value => { await saveCredentials(value); client.clearToken(); },
-    verify: async () => {
+    getSwitches, setSwitches, getCredentials, getProvider, setProvider,
+    openExternal: url => host.zotero.launchURL(url),
+    saveCredentials: async (value, provider) => { await saveCredentials(value, provider); client.clearToken(); },
+    verify: async (provider, signal) => {
       const controller = new AbortController();
+      const onAbort = () => controller.abort();
+      signal.addEventListener('abort', onAbort, { once: true });
+      if (signal.aborted) controller.abort();
       verificationControllers.add(controller);
-      const task = client.verify(controller.signal);
+      const task = client.verify(provider, controller.signal);
       activeTasks.add(task);
-      try { await task; } finally { activeTasks.delete(task); verificationControllers.delete(controller); }
+      try { await task; } finally {
+        activeTasks.delete(task); verificationControllers.delete(controller);
+        signal.removeEventListener('abort', onAbort);
+      }
     },
     load: () => service?.load() ?? Promise.resolve([]),
     run: async (options: RunOptions, progress, update) => {
@@ -123,21 +137,14 @@ async function openDialog(reader: Reader | undefined, settingsOnly: boolean): Pr
     openSource: async result => { const live = await getReader(); await live.navigate({ position: { pageIndex: result.pageIndex, rects: [result.pdfRect] } }); await (live as any).focus?.(); },
     copyText, saveImage,
     exportResults: async (results, format) => {
-      const content = format === 'json' ? JSON.stringify({ model: 'PaddleOCR-VL 1.6 (Baidu API)', attachmentKey: attachment?.key, results }, null, 2)
+      const content = format === 'json' ? JSON.stringify({ model: 'PaddleOCR-VL', attachmentKey: attachment?.key, results }, null, 2)
         : results.map(result => `## ${labels[result.kind]} · 第 ${result.pageIndex + 1} 页\n\n${result.caption ? result.caption + '\n\n' : ''}![${labels[result.kind]}](${result.image})\n\n${result.content}\n`).join('\n');
       return saveFile(`figure-extract.${format === 'json' ? 'json' : 'md'}`, content);
     },
     annotate: async result => { if (!attachment) throw new Error('没有 PDF 附件'); await annotate(attachment, result); },
     removeResult: id => service?.remove(id) ?? Promise.resolve()
   };
-  const args: DialogArguments = { api, settingsOnly };
-  const win = host.mainWindow().openDialog('chrome://figureextract/content/dialog.xhtml', '',
-    'chrome,centerscreen,resizable,dialog=no,width=1060,height=800', args);
-  windows.set(key, win);
-  win.addEventListener('unload', () => {
-    service?.cancel();
-    if (windows.get(key) === win) windows.delete(key);
-  }, { once: true });
+  return api;
 }
 
 export function onMainWindowLoad(win: Window): void {
@@ -154,7 +161,7 @@ export function onMainWindowLoad(win: Window): void {
     if (parentID === 'menu_ToolsPopup') {
       const settings = win.document.createElementNS('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul', 'menuitem');
       settings.setAttribute('label', 'Figure Extract 设置…');
-      settings.addEventListener('command', () => launch(undefined, true));
+      settings.addEventListener('command', () => host.zotero.Utilities.Internal.openPreferences(preferencesPaneID));
       parent.appendChild(settings);
       nodes.push(settings);
     }
@@ -178,7 +185,8 @@ export async function startup(): Promise<void> {
     helpURL: 'https://github.com/Achuan-2/zotero-figure-extract'
   });
   started = true;
-  host.zotero.Reader.registerEventListener('renderToolbar', onToolbar, PLUGIN_ID);
+  host.zotero.Reader.registerEventListener('renderToolbar', onReaderReady, PLUGIN_ID);
+  for (const reader of host.zotero.Reader._readers ?? []) void attachExistingReader(reader);
   for (const win of host.zotero.getMainWindows()) onMainWindowLoad(win);
 }
 export async function shutdown(): Promise<void> {
@@ -187,15 +195,12 @@ export async function shutdown(): Promise<void> {
     host.zotero.PreferencePanes.unregister(preferencesPaneID);
     preferencesPaneID = undefined;
   }
-  host.zotero.Reader.unregisterEventListener('renderToolbar', onToolbar);
+  host.zotero.Reader.unregisterEventListener('renderToolbar', onReaderReady);
+  readerEntries.clear();
   for (const service of services.values()) service.cancel();
   for (const controller of verificationControllers) controller.abort();
-  for (const win of windows.values()) if (!win.closed) win.close();
   await Promise.allSettled([...activeTasks]);
   for (const win of [...menus.keys()]) onMainWindowUnload(win);
-  for (const button of toolbarButtons) { try { button.remove(); } catch { /* Reader realm can already be gone. */ } }
-  toolbarButtons.clear();
   services.clear();
-  windows.clear();
   client.clearToken();
 }

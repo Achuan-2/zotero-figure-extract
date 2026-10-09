@@ -2,7 +2,7 @@
 
 <img src="assets/icon.png" width="96" alt="Zotero Figure Extract 图标">
 
-使用百度智能云「文档解析（PaddleOCR-VL）」API 提取 Zotero PDF 中的图、表和公式。该服务在 2026-10-09 的官方文档中基于 PaddleOCR-VL 1.6；插件调用托管服务，不在本地部署模型，也不通过不存在的版本参数锁定服务端模型。
+在 PDF 阅读器左侧栏内提取图、表和公式，默认使用 AI Studio PaddleOCR-VL-1.6 单 Key 接口，也支持切换至百度智能云文档解析服务。设置页面和侧栏均提供获取 API Key 链接。详见 [接口配置](docs/interfaces.md)。
 
 项目借鉴 [zotero-figure](https://github.com/MuiseDestiny/zotero-figure) 的阅读器集成、结果卡片和裁图思路，在独立目录中实现，不改动 `参考/zotero-figure`。采用 AGPL-3.0-or-later，见 LICENSE 和 NOTICE。
 
@@ -11,23 +11,23 @@
 ## 功能
 
 - **图、表、公式三个独立开关**，默认全部开启，保存选项。全部关闭时不能开始任务。
-- 当前页、指定页码（如 `1-5,8`）或全文识别；页面顺序处理，显示进度并支持取消。
-- 提取图片和统计图区域、表格 Markdown、行间及行内公式文本 / LaTeX；同时生成本地 PNG 裁图。
+- 默认全部页，也支持当前页、指定页码（如 `1-5,8`）识别；页面顺序处理，显示进度并支持取消。
+- 提取图片和统计图区域、表格内容（Markdown 或 HTML 原文）、行间及行内公式文本 / LaTeX；同时生成本地 PNG 裁图。
 - 卡片预览、按类型筛选、复制识别文本、保存 PNG、定位 PDF 原文、手动添加 Zotero 图像标注。
 - 导出 Markdown / JSON，内嵌图片，JSON 保留页码和原文坐标。导出当前筛选下的结果。
-- 缓存百度解析结果；切换识别类型可以复用缓存。PDF 路径、大小或修改时间变化后，旧缓存失效。
+- 按接口分别缓存解析结果；切换识别类型可以复用缓存。PDF 路径、大小或修改时间变化后，旧缓存失效。
 - 单页处理成功才更新结果；取消或后续页面失败会保留已完成页面。重新处理只替换该页启用类型的结果，不删除其他类型。
 - 凭据保存在 Zotero / Firefox 登录管理器，Secret Key 不写入插件偏好、缓存或导出文件。网络请求不经过会打印请求 URL 的 Zotero HTTP 调试封装。
 
 ## 安装与使用
 
 1. 在 Zotero 中选择「工具 → 插件」，使用齿轮菜单中的「从文件安装插件」，选择 `dist/zotero-figure-extract.xpi`。
-2. 在 Zotero 设置侧栏中选择「Figure Extract」，填写百度 API Key 和 Secret Key，并设置图、表、公式开关；也可使用「工具 → Figure Extract 设置…」入口。需要开通 **文档解析（PaddleOCR-VL）**；普通文字识别接口的权限不能替代该服务权限。
-3. 「保存并验证」只验证 OAuth 凭据，不上传 PDF；服务权限及剩余额度由实际解析请求检查。
-4. 打开 PDF，通过阅读器工具栏的「图表公式」进入提取窗口；也可以选择文献或 PDF 附件，通过文库右键菜单或工具菜单打开。文献有多个 PDF 时默认打开第一个 PDF，请直接打开目标 PDF 以明确选择。
-5. 选择类型和页码，点击「开始识别」。默认只识别当前页；指定页码从 **1** 开始。
+2. 在 Zotero 设置中选择「Figure Extract」，默认使用 AI Studio，点击「获取 AI Studio API Key」并填写单 Key，无需 Secret Key；也可切换至百度智能云并填写应用的 API Key 和 Secret Key。两套凭据独立保存，百度智能云需要开通 **文档解析（PaddleOCR-VL）**。
+3. 「保存并验证」只检查所选接口的鉴权，不上传 PDF；服务权限及剩余额度由实际解析请求检查。
+4. 打开 PDF，展开左侧栏，点击顶部「图表公式」图标页签，直接在侧栏选择类型、页码并查看识别结果；工具菜单和文库右键菜单也会打开该侧栏，不创建独立提取窗口。文献有多个 PDF 时默认打开第一个 PDF，请直接打开目标 PDF 以明确选择。
+5. 选择类型和页码，点击「开始识别」。默认识别全部页；指定页码从 **1** 开始。
 
-安装前已打开的阅读器可能需要关闭并重新打开 PDF，才能显示新增的工具栏按钮；工具菜单入口可直接使用。
+插件启用后给已打开的 PDF 补齐侧栏入口，不添加阅读器工具栏按钮。
 
 ## 独立开关的实际含义
 
@@ -39,7 +39,9 @@
 
 ## API 与数据路径
 
-按照 [百度官方文档](https://ai.baidu.com/ai-doc/OCR/Qmncwhwdt) 实现：
+AI Studio 使用 [官方异步 API](https://ai.baidu.com/ai-doc/AISTUDIO/fml7mozw5)，Bearer 单 Key 提交 PNG，模型设为 `PaddleOCR-VL-1.6`，查询任务后下载 JSONL 并转换版面坐标。表格 HTML 作为文本展示，不执行 HTML。
+
+百度智能云按照 [百度官方文档](https://ai.baidu.com/ai-doc/OCR/Qmncwhwdt) 实现：
 
 - OAuth：`POST https://aip.baidubce.com/oauth/2.0/token`，API Key / Secret Key 放在请求体中。
 - 提交：`POST https://aip.baidubce.com/rest/2.0/brain/online/v2/paddle-vl-parser/task`，传入单页 PNG 的 `file_data` 和 `file_name`。
@@ -50,14 +52,15 @@ PDF 页面通过 Zotero 阅读器自带的 PDF.js 渲染，最长边不超过 24
 
 本地数据位于 **Zotero 数据目录 / zotero-figure-extract / 文库 ID / PDF 附件 key /**：
 
-- `page-<从0开始的页码>.json`：单页结构化解析缓存。
+- `page-<从0开始的页码>.json`：百度智能云单页结构化解析缓存。
+- `page-<从0开始的页码>-aistudio.json`：AI Studio 单页缓存，避免不同接口串用。
 - `results.json`：提取结果与内嵌 PNG，通过临时文件原子替换。
 
 提取缓存不通过 Zotero 自动同步。手动添加到 PDF 的标注作为 Zotero 标注保存，遵循 Zotero 自身的同步行为。删除卡片只删除本地提取结果，不删除已添加的标注。点击开始后所选页面会上传百度，使用账户 API 额度；取消只停止本地等待和后续提交，已提交的云端任务可能继续执行并计费。
 
 ## 开发
 
-需要 Node.js 20+ 和 pnpm。源码分为：`domain.ts`（类型与版面转换）、`baidu.ts`（异步 API）、`extraction.ts`（任务和缓存）、`platform.ts`（Zotero / Gecko / PDF.js 适配）、`plugin.ts`（生命周期和入口）、`ui.ts`（窗口交互）。
+需要 Node.js 20+ 和 pnpm。源码分为：`domain.ts`（类型与版面转换）、`baidu.ts`（异步 API）、`extraction.ts`（任务和缓存）、`platform.ts`（Zotero / Gecko / PDF.js 适配）、`plugin.ts`（生命周期和入口）、`ui.ts`（侧栏交互）、`reader-entry.ts`（阅读器侧栏适配）、`ocr.ts`（接口选择）、`aistudio.ts`（单 Key 异步 API）。
 
 ```powershell
 pnpm install

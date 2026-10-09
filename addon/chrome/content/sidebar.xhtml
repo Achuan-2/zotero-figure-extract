@@ -5,7 +5,6 @@
     <meta charset="utf-8" />
     <title>Zotero Figure Extract</title>
     <link rel="stylesheet" href="chrome://figureextract/content/style.css" />
-    <script src="chrome://figureextract/content/ui.js" defer="defer"></script>
   </head>
   <body>
     <header>
@@ -23,20 +22,22 @@
           </div>
           <h2>识别范围</h2>
           <select id="scope" aria-label="识别范围">
-            <option value="current">当前页</option><option value="range">指定页码</option><option value="all">全文</option>
+            <option value="all">全部页</option><option value="current">当前页</option><option value="range">指定页码</option>
           </select>
           <input type="text" id="page-range" placeholder="例如 1-5,8" aria-label="页码范围" hidden="hidden" />
           <p id="page-count" class="help"></p>
           <label class="force"><input type="checkbox" id="force" />重新调用 API，忽略缓存</label>
-          <p class="help">点击开始后，所选 PDF 页面将上传百度进行解析，调用使用账户的 API 额度。关闭某类会跳过该类结果的提取；百度仍默认解析整页。</p>
           <div class="run-actions"><button type="button" id="start" class="primary">开始识别</button><button type="button" id="cancel" disabled="disabled">取消</button></div>
           <progress id="progress" value="0" max="1"></progress>
+          <p class="help">点击开始后，所选页面将上传所选服务，使用账户 API 额度。类型开关控制提取结果，服务仍解析整页。</p>
         </section>
         <details id="settings">
-          <summary>百度 OCR 设置</summary>
-          <p class="help">开通「文档解析（PaddleOCR-VL）」后，填写应用凭据。</p>
-          <label class="field">API Key<input id="api-key" type="password" autocomplete="off" /></label>
-          <label class="field">Secret Key<input id="secret-key" type="password" autocomplete="off" /></label>
+          <summary>OCR 接口设置</summary>
+          <label class="field">识别接口<select id="provider"><option value="aistudio">AI Studio（单 API Key）</option><option value="baidu">百度智能云（API Key + Secret Key）</option></select></label>
+          <p id="provider-help" class="help"></p>
+          <p><a id="key-link" href="https://aistudio.baidu.com/account/accessToken">获取 AI Studio API Key</a></p>
+          <label class="field"><span id="api-key-label">API Key</span><input id="api-key" type="password" autocomplete="off" /></label>
+          <label id="secret-key-field" class="field">Secret Key<input id="secret-key" type="password" autocomplete="off" /></label>
           <div class="settings-actions"><button type="button" id="save-settings">保存设置</button><button type="button" id="verify">保存并验证</button></div>
           <p id="credentials-status" class="help" role="status">凭据保存在 Zotero 的登录管理器中。</p>
         </details>

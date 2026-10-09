@@ -1,7 +1,7 @@
 /** Validate the install-time requirements enforced by Zotero's ExtensionData. */
 export function validatePackage(files) {
   for (const name of [
-    'manifest.json', 'bootstrap.js', 'chrome/content/plugin.js', 'chrome/content/ui.js',
+    'manifest.json', 'bootstrap.js', 'chrome/content/plugin.js', 'chrome/content/sidebar.xhtml', 'chrome/content/style.css',
     'chrome/content/preferences.xhtml', 'chrome/content/preferences.js', 'chrome/content/preferences.css'
   ]) {
     if (!files[name]?.length) throw new Error(`安装包缺少文件：${name}`);

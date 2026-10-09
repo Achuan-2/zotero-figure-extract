@@ -1,23 +1,23 @@
 import { defaults, enabledKinds, labels, type Kind, type Result, type Switches } from './domain';
-import type { DialogArguments, Filter, RunOptions } from './contracts';
+import type { ExtractionAPI, Filter, RunOptions } from './contracts';
+import { bindCredentialSettings } from './credential-ui';
+import type { Provider } from './providers';
 
-function element<T extends HTMLElement>(id: string): T {
-  const result = document.getElementById(id);
-  if (!result) throw new Error(`缺少界面元素：${id}`);
-  return result as T;
-}
+export function bindExtractionUI(document: Document, api: ExtractionAPI): () => void {
+  function element<T extends HTMLElement>(id: string): T {
+    const result = document.getElementById(id);
+    if (!result) throw new Error(`缺少界面元素：${id}`);
+    return result as T;
+  }
 
-function html<K extends keyof HTMLElementTagNameMap>(tag: K): HTMLElementTagNameMap[K] {
-  return document.createElementNS('http://www.w3.org/1999/xhtml', tag) as HTMLElementTagNameMap[K];
-}
+  function html<K extends keyof HTMLElementTagNameMap>(tag: K): HTMLElementTagNameMap[K] {
+    return document.createElementNS('http://www.w3.org/1999/xhtml', tag) as HTMLElementTagNameMap[K];
+  }
 
-function init(): void {
-  const args = (window as unknown as { arguments: DialogArguments[] }).arguments[0];
-  const { api, settingsOnly } = args;
   let results: Result[] = [];
   let filter: Filter = 'all';
   let busy = false;
-  let loading = !settingsOnly;
+  let loading = true;
   let credentialsBusy = false;
   let closed = false;
   const start = element<HTMLButtonElement>('start');
@@ -25,6 +25,7 @@ function init(): void {
   const status = element('status');
   const progress = element<HTMLProgressElement>('progress');
   const scope = element<HTMLSelectElement>('scope');
+  scope.value = 'all';
   const range = element<HTMLInputElement>('page-range');
   const exportSelect = element<HTMLSelectElement>('export');
   const switches = (Object.keys(defaults) as Kind[]).map(kind => ({ kind, input: element<HTMLInputElement>(`recognize-${kind}`) }));
@@ -47,10 +48,7 @@ function init(): void {
     element<HTMLInputElement>('force').disabled = busy;
     for (const { input } of switches) input.disabled = busy;
     exportSelect.disabled = busy || !results.length;
-    element<HTMLButtonElement>('save-settings').disabled = busy || credentialsBusy;
-    element<HTMLButtonElement>('verify').disabled = busy || credentialsBusy;
-    element<HTMLInputElement>('api-key').disabled = busy || credentialsBusy;
-    element<HTMLInputElement>('secret-key').disabled = busy || credentialsBusy;
+    credentialForm.setDisabled(busy || credentialsBusy);
     for (const button of document.querySelectorAll<HTMLButtonElement>('.card-actions button')) button.disabled = busy;
   }
 
@@ -129,10 +127,12 @@ function init(): void {
   scope.addEventListener('change', () => { range.hidden = scope.value !== 'range'; });
   cancel.addEventListener('click', () => { api.cancel(); message('正在取消；已完成页面的结果会保留。'); });
   start.addEventListener('click', () => {
+    if (closed || busy || loading || credentialsBusy || !enabledKinds(selectedSwitches()).length) return;
     busy = true;
     updateButtons();
     message('正在准备识别…');
-    const options: RunOptions = { switches: selectedSwitches(), scope: scope.value as RunOptions['scope'], range: range.value,
+    const options: RunOptions = { provider: element<HTMLSelectElement>('provider').value as Provider,
+      switches: selectedSwitches(), scope: scope.value as RunOptions['scope'], range: range.value,
       force: element<HTMLInputElement>('force').checked };
     void action(async () => {
       try {
@@ -161,51 +161,29 @@ function init(): void {
   });
 
   const apiKey = element<HTMLInputElement>('api-key');
-  const secretKey = element<HTMLInputElement>('secret-key');
-  const credentialStatus = element('credentials-status');
-  try {
-    const credentials = api.getCredentials();
-    apiKey.value = credentials.apiKey;
-    secretKey.value = credentials.secretKey;
-    if (!credentials.apiKey) element<HTMLDetailsElement>('settings').open = true;
-  } catch { credentialStatus.textContent = '无法读取凭据，请解锁 Zotero 登录管理器后重试。'; }
-  async function save(verify: boolean): Promise<void> {
-    credentialsBusy = true;
-    updateButtons();
+  const credentialForm = bindCredentialSettings({
+    provider: element('provider'), apiKey, apiKeyLabel: element('api-key-label'),
+    secretKey: element('secret-key'), secretField: element('secret-key-field'), help: element('provider-help'),
+    keyLink: element('key-link'), status: element('credentials-status'), save: element('save-settings'), verify: element('verify')
+  }, api, {
+    blocked: () => busy,
+    onBusy: value => { credentialsBusy = value; if (!closed) updateButtons(); }
+  });
+  if (!apiKey.value) element<HTMLDetailsElement>('settings').open = true;
+  void action(async () => {
     try {
-      await api.saveCredentials({ apiKey: apiKey.value, secretKey: secretKey.value });
-      if (verify) {
-        credentialStatus.textContent = '正在验证…';
-        await api.verify();
-      }
-      if (!closed) {
-        credentialStatus.textContent = verify ? '百度鉴权成功。服务权限和额度会在实际识别时检查。' : '设置已保存。';
-        credentialStatus.classList.remove('error');
-      }
-    } catch (error) {
-      if (!closed) { credentialStatus.textContent = error instanceof Error ? error.message : String(error); credentialStatus.classList.add('error'); }
-    } finally { credentialsBusy = false; if (!closed) updateButtons(); }
-  }
-  element('save-settings').addEventListener('click', () => { void save(false); });
-  element('verify').addEventListener('click', () => { void save(true); });
-  if (settingsOnly) {
-    document.body.classList.add('settings-only');
-    element('recognition-controls').hidden = true;
-    element('workspace').hidden = true;
-    element<HTMLDetailsElement>('settings').open = true;
-    message('设置用于所有文档。');
-  } else {
-    void action(async () => {
-      try {
-        results = await api.load();
-        render();
-        message(results.length ? '已加载本地提取结果。' : '请选择类型和页码，开始识别。');
-      } finally { loading = false; if (!closed) updateButtons(); }
-    });
-  }
+      results = await api.load();
+      render();
+      message(results.length ? '已加载本地提取结果。' : '请选择类型和页码，开始识别。');
+    } finally { loading = false; if (!closed) updateButtons(); }
+  });
   updateButtons();
-  window.addEventListener('unload', () => { closed = true; api.cancel(); apiKey.value = secretKey.value = ''; }, { once: true });
+  const dispose = () => {
+    if (closed) return;
+    closed = true;
+    api.cancel();
+    credentialForm.dispose();
+  };
+  document.defaultView?.addEventListener('unload', dispose);
+  return () => { document.defaultView?.removeEventListener('unload', dispose); dispose(); };
 }
-
-if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', init, { once: true });
-else init();

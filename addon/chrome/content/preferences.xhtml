@@ -1,11 +1,19 @@
 <vbox id="figureextract-pref-root">
   <groupbox>
-    <html:h2>百度 OCR 设置</html:h2>
-    <html:p class="figureextract-pref-help">使用百度智能云文档解析（PaddleOCR-VL 1.6）提取论文中的图、表和公式。请先开通文档解析服务，再填写应用凭据。</html:p>
-    <html:label class="figureextract-pref-field" for="figureextract-pref-api-key">API Key</html:label>
+    <html:h2>OCR 接口设置</html:h2>
+    <html:label class="figureextract-pref-field" for="figureextract-pref-provider">识别接口</html:label>
+    <html:select id="figureextract-pref-provider" class="figureextract-pref-input">
+      <html:option value="aistudio">AI Studio（单 API Key）</html:option>
+      <html:option value="baidu">百度智能云（API Key + Secret Key）</html:option>
+    </html:select>
+    <html:p id="figureextract-pref-provider-help" class="figureextract-pref-help"></html:p>
+    <html:p><html:a id="figureextract-pref-key-link" href="https://aistudio.baidu.com/account/accessToken">获取 AI Studio API Key</html:a></html:p>
+    <html:label id="figureextract-pref-api-key-label" class="figureextract-pref-field" for="figureextract-pref-api-key">API Key</html:label>
     <html:input id="figureextract-pref-api-key" class="figureextract-pref-input" type="password" autocomplete="off" />
-    <html:label class="figureextract-pref-field" for="figureextract-pref-secret-key">Secret Key</html:label>
-    <html:input id="figureextract-pref-secret-key" class="figureextract-pref-input" type="password" autocomplete="off" />
+    <html:div id="figureextract-pref-secret-field">
+      <html:label class="figureextract-pref-field" for="figureextract-pref-secret-key">Secret Key</html:label>
+      <html:input id="figureextract-pref-secret-key" class="figureextract-pref-input" type="password" autocomplete="off" />
+    </html:div>
     <html:div class="figureextract-pref-actions">
       <html:button id="figureextract-pref-save" type="button">保存设置</html:button>
       <html:button id="figureextract-pref-verify" type="button">保存并验证</html:button>
@@ -19,10 +27,10 @@
       <html:label><html:input id="figureextract-pref-table" type="checkbox" />表</html:label>
       <html:label><html:input id="figureextract-pref-formula" type="checkbox" />公式</html:label>
     </html:div>
-    <html:p class="figureextract-pref-help">开关立即保存，并与提取窗口共用配置。全部关闭时无法开始识别。开关控制保留的结果，百度仍解析整页。</html:p>
+    <html:p class="figureextract-pref-help">开关立即保存，并与阅读器侧栏共用配置。全部关闭时无法开始识别。开关控制保留的结果，服务仍解析整页。</html:p>
   </groupbox>
   <groupbox>
     <html:h2>开始提取</html:h2>
-    <html:p class="figureextract-pref-help">打开 PDF，点击阅读器工具栏中的「图表公式」，选择类型和页码后开始识别。所选页面会上传百度，并使用账户 API 额度。</html:p>
+    <html:p class="figureextract-pref-help">打开 PDF，在左侧栏选择「图表公式」页签，选择类型和页码后开始识别。默认识别全部页；所选页面会上传所选服务，并使用账户 API 额度。</html:p>
   </groupbox>
 </vbox>

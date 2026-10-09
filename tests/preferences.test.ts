@@ -4,11 +4,14 @@ import { bindPreferences, type PreferencesAPI } from '../src/preferences-ui';
 import { defaults, type Switches } from '../src/domain';
 import { build } from 'esbuild';
 import vm from 'node:vm';
+import type { Provider } from '../src/providers';
 
 class Control extends EventTarget {
   value = '';
   checked = false;
   disabled = false;
+  hidden = false;
+  href = '';
   textContent = '';
   classes = new Set<string>();
   classList = {
@@ -17,7 +20,7 @@ class Control extends EventTarget {
 }
 
 function fixture(overrides: Partial<PreferencesAPI> = {}) {
-  const fields = Object.fromEntries(['api-key', 'secret-key', 'save', 'verify', 'status', 'figure', 'table', 'formula']
+  const fields = Object.fromEntries(['provider', 'api-key', 'api-key-label', 'secret-key', 'secret-field', 'provider-help', 'key-link', 'save', 'verify', 'status', 'figure', 'table', 'formula']
     .map(name => [name, new Control()]));
   const root = Object.assign(new EventTarget(), {
     querySelector: (selector: string) => fields[selector.replace('#figureextract-pref-', '')]
@@ -25,19 +28,63 @@ function fixture(overrides: Partial<PreferencesAPI> = {}) {
   let switches: Switches = { ...defaults };
   let credentials = { apiKey: 'existing-key', secretKey: 'existing-secret' };
   let verifications = 0;
+  let provider: Provider = 'baidu';
   const api: PreferencesAPI = {
+    getProvider: () => provider,
+    setProvider: value => { provider = value; },
     getCredentials: () => credentials,
     saveCredentials: async value => { credentials = value; },
     getSwitches: () => switches,
     setSwitches: value => { switches = value; },
     verify: async () => { verifications++; },
     clearToken() {},
+    openExternal() {},
     ...overrides
   };
   bindPreferences(root as unknown as Element, api);
   return { fields, root, api, state: () => ({ switches, credentials, verifications }) };
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
+
+test('设置页提供对应接口的获取 Key 链接，阻止页面跳转并调用系统浏览器', () => {
+  const links: string[] = [];
+  const { fields } = fixture({ getProvider: () => 'aistudio', openExternal: url => { links.push(url); } });
+  assert.equal(fields['key-link'].href, 'https://aistudio.baidu.com/account/accessToken');
+  const event = new Event('click', { cancelable: true });
+  fields['key-link'].dispatchEvent(event);
+  assert.equal(event.defaultPrevented, true);
+  fields.provider.value = 'baidu';
+  fields.provider.dispatchEvent(new Event('change'));
+  fields['key-link'].dispatchEvent(new Event('click', { cancelable: true }));
+  assert.deepEqual(links, ['https://aistudio.baidu.com/account/accessToken', 'https://console.bce.baidu.com/ai-engine/ocr/overview/index']);
+});
+
+test('切换接口隐藏 Secret Key、独立加载与保存凭据，并保留未保存的编辑', async () => {
+  const stored = {
+    baidu: { apiKey: 'cloud-key', secretKey: 'cloud-secret' },
+    aistudio: { apiKey: 'studio-key', secretKey: '' }
+  };
+  const { fields } = fixture({
+    getCredentials: (provider = 'baidu') => stored[provider],
+    saveCredentials: async (value, provider = 'baidu') => { stored[provider] = value; }
+  });
+  fields['secret-key'].value = 'unsaved-cloud-secret';
+  fields.provider.value = 'aistudio';
+  fields.provider.dispatchEvent(new Event('change'));
+  assert.equal(fields['secret-field'].hidden, true);
+  assert.equal(fields['secret-key'].disabled, true);
+  assert.equal(fields['api-key'].value, 'studio-key');
+  fields['api-key'].value = 'new-studio-key';
+  fields.save.dispatchEvent(new Event('click'));
+  await settle();
+  assert.deepEqual(stored.aistudio, { apiKey: 'new-studio-key', secretKey: '' });
+  assert.deepEqual(stored.baidu, { apiKey: 'cloud-key', secretKey: 'cloud-secret' });
+  fields.provider.value = 'baidu';
+  fields.provider.dispatchEvent(new Event('change'));
+  assert.equal(fields['secret-field'].hidden, false);
+  assert.equal(fields['api-key'].value, 'cloud-key');
+  assert.equal(fields['secret-key'].value, 'unsaved-cloud-secret');
+});
 
 test('设置页沿用已有凭据；保存不请求百度，独立开关与提取窗口共用配置', async () => {
   const { fields, root, api, state } = fixture();
@@ -66,7 +113,7 @@ test('鉴权期间阻止重复提交；关闭设置页取消请求并清空字�
   let signal: AbortSignal | undefined;
   let requests = 0;
   const { fields, root } = fixture({
-    verify: async value => {
+    verify: async (_provider, value) => {
       signal = value;
       requests++;
       await new Promise<void>((_resolve, reject) => {
@@ -93,7 +140,7 @@ test('保存失败不发出鉴权请求，并显示错误后恢复可操作状�
   await settle();
   assert.equal(state().verifications, 0);
   assert.equal(fields.status.textContent, '请填写完整凭据');
-  assert.equal(fields.status.classes.has('figureextract-pref-error'), true);
+  assert.equal(fields.status.classes.has('error'), true);
   assert.equal(fields.verify.disabled, false);
 });
 
@@ -111,7 +158,7 @@ test('保存等待期间关闭页面，不再开始鉴权', async () => {
 
 test('设置脚本在隔离沙盒中等待片段 load，再读取配置并绑定一次', async () => {
   const built = await build({ entryPoints: ['src/preferences.ts'], bundle: true, write: false, format: 'iife', globalName: 'FigureExtractPreferences', target: 'firefox115' });
-  const fields = Object.fromEntries(['api-key', 'secret-key', 'save', 'verify', 'status', 'figure', 'table', 'formula']
+  const fields = Object.fromEntries(['provider', 'api-key', 'api-key-label', 'secret-key', 'secret-field', 'provider-help', 'key-link', 'save', 'verify', 'status', 'figure', 'table', 'formula']
     .map(name => [name, new Control()]));
   const root = Object.assign(new EventTarget(), {
     id: 'figureextract-pref-root',
@@ -144,7 +191,9 @@ test('设置脚本在隔离沙盒中等待片段 load，再读取配置并绑定
   assert.equal(credentialReads, 0);
   listener!({ target: root });
   assert.equal(credentialReads, 1);
-  assert.equal(fields['api-key'].value, 'stored-key');
+  assert.equal(fields.provider.value, 'aistudio');
+  assert.equal(fields['api-key'].value, 'stored-secret');
+  assert.equal(fields['secret-field'].hidden, true);
   assert.equal(fields.figure.checked, true);
   assert.equal(listener, undefined);
 });

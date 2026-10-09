@@ -12,7 +12,8 @@ async function packageFixture(): Promise<Record<string, Uint8Array>> {
     'manifest.json': new Uint8Array(await readFile('addon/manifest.json')),
     'bootstrap.js': new Uint8Array(await readFile('addon/bootstrap.js')),
     'chrome/content/plugin.js': new TextEncoder().encode('/* bundle */'),
-    'chrome/content/ui.js': new TextEncoder().encode('/* bundle */'),
+    'chrome/content/sidebar.xhtml': new Uint8Array(await readFile('addon/chrome/content/sidebar.xhtml')),
+    'chrome/content/style.css': new Uint8Array(await readFile('addon/chrome/content/style.css')),
     'chrome/content/preferences.js': new TextEncoder().encode('/* preferences bundle */'),
     'chrome/content/preferences.xhtml': new Uint8Array(await readFile('addon/chrome/content/preferences.xhtml')),
     'chrome/content/preferences.css': new Uint8Array(await readFile('addon/chrome/content/preferences.css'))

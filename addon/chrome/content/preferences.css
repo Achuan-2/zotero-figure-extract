@@ -38,6 +38,7 @@
   gap: 6px;
   min-width: 80px;
 }
-#figureextract-pref-root .figureextract-pref-error {
+#figureextract-pref-root .error {
   color: var(--accent-red, #c33131);
 }
+#figureextract-pref-root [hidden] { display: none !important; }

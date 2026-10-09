@@ -98,7 +98,7 @@ test('移除结果只更改本地结果；缓存不含凭据', async () => {
   assert.equal((await f.service.load()).length, 2);
   const cache = f.files.get('page-0.json') as PageCache;
   assert.equal(cache.schema, 1);
-  assert.deepEqual(Object.keys(cache).sort(), ['schema', 'sourceStamp', 'chartAnalysis', 'parsed'].sort());
+  assert.deepEqual(Object.keys(cache).sort(), ['schema', 'sourceStamp', 'chartAnalysis', 'parserKey', 'parsed'].sort());
 });
 
 test('文档并发任务被阻止，当前任务结束后可再次运行', async () => {

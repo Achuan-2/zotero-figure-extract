@@ -1,4 +1,5 @@
-import { BaiduClient } from './baidu';
+import type { PageParser } from './ocr';
+import { cacheKeys } from './providers';
 import { abortIfNeeded, enabledKinds, mergeResults, normalizePage, type PageCache, type Result } from './domain';
 import type { Progress, RunOptions } from './contracts';
 
@@ -16,7 +17,7 @@ interface Manifest { schema: 1; sourceStamp: string; results: Result[] }
 
 export class ExtractionService {
   private controller?: AbortController;
-  constructor(private client: BaiduClient, private io: ExtractionIO) {}
+  constructor(private client: PageParser, private io: ExtractionIO) {}
   cancel(): void { this.controller?.abort(); }
 
   async load(): Promise<Result[]> {
@@ -40,6 +41,8 @@ export class ExtractionService {
     this.controller = controller;
     const signal = controller.signal;
     try {
+      const parser = this.client.snapshot?.(options.provider) ?? this.client;
+      const parserKey = parser.cacheKey ?? cacheKeys.baidu;
       const sourceStamp = await this.io.stamp();
       let results = await this.load();
       const total = pages.length;
@@ -48,22 +51,25 @@ export class ExtractionService {
         const pageIndex = pages[index];
         const report = (text: string) => progress({ text: `第 ${pageIndex + 1} 页：${text}`, done: index, total });
         report('准备页面');
-        const cached = options.force ? undefined : await this.io.read<PageCache>(`page-${pageIndex}.json`);
+        const cacheName = parser.provider === 'aistudio' ? `page-${pageIndex}-aistudio.json` : `page-${pageIndex}.json`;
+        const cached = options.force ? undefined : await this.io.read<PageCache>(cacheName);
         const reusable = cached?.schema === 1 && cached.sourceStamp === sourceStamp
+          && (cached.parserKey ?? cacheKeys.baidu) === parserKey
           && (!options.switches.figure || cached.chartAnalysis);
         const rendered = await this.io.render(pageIndex, signal);
         try {
-          report(reusable ? '复用本地解析缓存' : '提交百度解析任务');
-          const parsed = reusable ? cached.parsed : await this.client.parse(rendered.base64, options.switches.figure, signal, report);
+          report(reusable ? '复用本地解析缓存' : `提交${parser.provider === 'aistudio' ? ' AI Studio ' : '百度智能云'}解析任务`);
+          const parsed = reusable ? cached.parsed : await parser.parse(rendered.base64, options.switches.figure, signal, report);
           const regions = normalizePage(parsed, pageIndex, options.switches);
           abortIfNeeded(signal);
-          if (!reusable) await this.io.write(`page-${pageIndex}.json`, {
-            schema: 1, sourceStamp, chartAnalysis: options.switches.figure, parsed
+          if (!reusable) await this.io.write(cacheName, {
+            schema: 1, sourceStamp, chartAnalysis: options.switches.figure, parserKey, parsed
           } satisfies PageCache);
           const replacement: Result[] = [];
           for (const region of regions) {
             abortIfNeeded(signal);
-            replacement.push(rendered.crop(region, parsed.meta.page_width, parsed.meta.page_height));
+            replacement.push({ ...rendered.crop(region, parsed.meta.page_width, parsed.meta.page_height),
+              provider: parser.provider, model: parser.model });
           }
           abortIfNeeded(signal);
           if (await this.io.stamp() !== sourceStamp) throw new Error('识别过程中 PDF 文件发生变化，请重新识别');

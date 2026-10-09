@@ -1,4 +1,5 @@
 import { abortIfNeeded, type ParsedPage } from './domain';
+import { cacheKeys } from './providers';
 
 export interface Credentials { apiKey: string; secretKey: string }
 export interface Transport {
@@ -18,6 +19,9 @@ interface ApiResponse {
 export const TASK_URL = 'https://aip.baidubce.com/rest/2.0/brain/online/v2/paddle-vl-parser/task';
 
 export class BaiduClient {
+  readonly provider = 'baidu' as const;
+  readonly cacheKey = cacheKeys.baidu;
+  readonly model = 'PaddleOCR-VL (Baidu managed)';
   private token?: { value: string; expires: number; identity: string };
   constructor(private transport: Transport, private credentials: () => Credentials) {}
 

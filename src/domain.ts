@@ -1,3 +1,4 @@
+import type { Provider } from './providers';
 export type Kind = 'figure' | 'table' | 'formula';
 export type Rect = [number, number, number, number];
 export type Switches = Record<Kind, boolean>;
@@ -29,12 +30,15 @@ export interface Region {
 export interface Result extends Region {
   pdfRect: Rect;
   image: string;
+  provider?: Provider;
+  model?: string;
 }
 export interface PageCache {
   schema: 1;
   sourceStamp: string;
   chartAnalysis: boolean;
   parsed: ParsedPage;
+  parserKey?: string;
 }
 
 export function enabledKinds(switches: Switches): Kind[] {
