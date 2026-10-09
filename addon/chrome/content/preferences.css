@@ -1,0 +1,43 @@
+#figureextract-pref-root {
+  max-width: 780px;
+}
+#figureextract-pref-root groupbox {
+  margin-bottom: 22px;
+}
+#figureextract-pref-root h2 {
+  margin-top: 0;
+}
+#figureextract-pref-root .figureextract-pref-help {
+  color: var(--fill-secondary, #666);
+  line-height: 1.6;
+}
+#figureextract-pref-root .figureextract-pref-field {
+  display: block;
+  margin: 12px 0 6px;
+  font-weight: 600;
+}
+#figureextract-pref-root .figureextract-pref-input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 540px;
+  padding: 8px 10px;
+}
+#figureextract-pref-root .figureextract-pref-actions,
+#figureextract-pref-root .figureextract-pref-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 14px 0;
+}
+#figureextract-pref-root .figureextract-pref-actions button {
+  padding: 6px 14px;
+}
+#figureextract-pref-root .figureextract-pref-switches label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 80px;
+}
+#figureextract-pref-root .figureextract-pref-error {
+  color: var(--accent-red, #c33131);
+}

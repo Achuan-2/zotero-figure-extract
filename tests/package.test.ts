@@ -12,7 +12,10 @@ async function packageFixture(): Promise<Record<string, Uint8Array>> {
     'manifest.json': new Uint8Array(await readFile('addon/manifest.json')),
     'bootstrap.js': new Uint8Array(await readFile('addon/bootstrap.js')),
     'chrome/content/plugin.js': new TextEncoder().encode('/* bundle */'),
-    'chrome/content/ui.js': new TextEncoder().encode('/* bundle */')
+    'chrome/content/ui.js': new TextEncoder().encode('/* bundle */'),
+    'chrome/content/preferences.js': new TextEncoder().encode('/* preferences bundle */'),
+    'chrome/content/preferences.xhtml': new Uint8Array(await readFile('addon/chrome/content/preferences.xhtml')),
+    'chrome/content/preferences.css': new Uint8Array(await readFile('addon/chrome/content/preferences.css'))
   };
 }
 
@@ -93,6 +96,21 @@ test('插件打包可在独立 bootstrap 沙盒执行，生命周期注册及清
   const sandbox: Record<string, any> = {
     AbortController, TextEncoder, Zotero: {
       getMainWindows: () => [],
+      PreferencePanes: {
+        async register(options: Record<string, any>) {
+          assert.equal(options.pluginID, 'zotero-figure-extract@achuan');
+          assert.equal(options.label, 'Figure Extract');
+          assert.equal(options.src, 'chrome://figureextract/content/preferences.xhtml');
+          assert.deepEqual(Array.from(options.scripts), ['chrome://figureextract/content/preferences.js']);
+          assert.deepEqual(Array.from(options.stylesheets), ['chrome://figureextract/content/preferences.css']);
+          events.push('preferences:register');
+          return options.id;
+        },
+        unregister(id: string) {
+          assert.equal(id, 'figureextract-preferences');
+          events.push('preferences:unregister');
+        }
+      },
       Reader: { registerEventListener(name: string) { events.push('register:' + name); }, unregisterEventListener(name: string) { events.push('unregister:' + name); } }
     }, Services: {}, Components: {}, IOUtils: {}, PathUtils: {}
   };
@@ -100,5 +118,44 @@ test('插件打包可在独立 bootstrap 沙盒执行，生命周期注册及清
   vm.runInContext(built.outputFiles[0].text, sandbox);
   await sandbox.FigureExtract.startup();
   await sandbox.FigureExtract.shutdown();
-  assert.deepEqual(events, ['register:renderToolbar', 'unregister:renderToolbar']);
+  assert.deepEqual(events, ['preferences:register', 'register:renderToolbar', 'preferences:unregister', 'unregister:renderToolbar']);
+});
+
+test('安装包必须包含设置页面和脚本，片段不使用完整 HTML 文档', async () => {
+  const files = await packageFixture();
+  delete files['chrome/content/preferences.js'];
+  assert.throws(() => validatePackage(files), /安装包缺少文件：chrome\/content\/preferences.js/);
+  const markup = await readFile('addon/chrome/content/preferences.xhtml', 'utf8');
+  assert.doesNotMatch(markup, /<!DOCTYPE|<html[\s>]|<head[\s>]|<body[\s>]/i);
+  assert.match(markup, /id="figureextract-pref-root"/);
+  assert.doesNotMatch(markup, /onload=/);
+});
+
+test('本机 Zotero 的真实设置页注册器接受插件注册参数并可注销', { skip: !existsSync('C:/Program Files/Zotero/app/omni.ja') }, async () => {
+  const archive = unzipSync(readFileSync('C:/Program Files/Zotero/app/omni.ja'), {
+    filter: file => file.name === 'chrome/content/zotero/xpcom/preferencePanes.js'
+  });
+  const native = strFromU8(archive['chrome/content/zotero/xpcom/preferencePanes.js']);
+  const built = await build({ entryPoints: ['src/plugin.ts'], bundle: true, write: false, format: 'iife', globalName: 'FigureExtract', target: 'firefox115' });
+  const sandbox: Record<string, any> = {
+    AbortController, TextEncoder,
+    Services: { wm: { getEnumerator: () => [] } },
+    Components: {}, IOUtils: {}, PathUtils: {},
+    Zotero: {
+      getMainWindows: () => [], debug() {},
+      Plugins: { resolveURI: async (_id: string, uri: string) => uri, addObserver() {} },
+      Reader: { registerEventListener() {}, unregisterEventListener() {} }
+    }
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(native, sandbox);
+  vm.runInContext(built.outputFiles[0].text, sandbox);
+  await sandbox.FigureExtract.startup();
+  const pane = sandbox.Zotero.PreferencePanes.pluginPanes[0];
+  assert.equal(pane.id, 'figureextract-preferences');
+  assert.equal(pane.rawLabel, 'Figure Extract');
+  assert.equal(pane.defaultXUL, true);
+  assert.equal(pane.src, 'chrome://figureextract/content/preferences.xhtml');
+  await sandbox.FigureExtract.shutdown();
+  assert.equal(sandbox.Zotero.PreferencePanes.pluginPanes.length, 0);
 });

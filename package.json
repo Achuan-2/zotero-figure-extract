@@ -1,6 +1,6 @@
 {
   "name": "zotero-figure-extract",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "使用百度 PaddleOCR-VL 1.6 提取 Zotero PDF 中的图、表和公式",
   "license": "AGPL-3.0-or-later",

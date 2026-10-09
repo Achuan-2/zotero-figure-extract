@@ -1,0 +1,28 @@
+<vbox id="figureextract-pref-root">
+  <groupbox>
+    <html:h2>百度 OCR 设置</html:h2>
+    <html:p class="figureextract-pref-help">使用百度智能云文档解析（PaddleOCR-VL 1.6）提取论文中的图、表和公式。请先开通文档解析服务，再填写应用凭据。</html:p>
+    <html:label class="figureextract-pref-field" for="figureextract-pref-api-key">API Key</html:label>
+    <html:input id="figureextract-pref-api-key" class="figureextract-pref-input" type="password" autocomplete="off" />
+    <html:label class="figureextract-pref-field" for="figureextract-pref-secret-key">Secret Key</html:label>
+    <html:input id="figureextract-pref-secret-key" class="figureextract-pref-input" type="password" autocomplete="off" />
+    <html:div class="figureextract-pref-actions">
+      <html:button id="figureextract-pref-save" type="button">保存设置</html:button>
+      <html:button id="figureextract-pref-verify" type="button">保存并验证</html:button>
+    </html:div>
+    <html:p id="figureextract-pref-status" class="figureextract-pref-help" role="status" aria-live="polite">凭据保存在 Zotero 登录管理器中。验证仅检查百度鉴权，不上传 PDF。</html:p>
+  </groupbox>
+  <groupbox>
+    <html:h2>识别内容</html:h2>
+    <html:div class="figureextract-pref-switches">
+      <html:label><html:input id="figureextract-pref-figure" type="checkbox" />图</html:label>
+      <html:label><html:input id="figureextract-pref-table" type="checkbox" />表</html:label>
+      <html:label><html:input id="figureextract-pref-formula" type="checkbox" />公式</html:label>
+    </html:div>
+    <html:p class="figureextract-pref-help">开关立即保存，并与提取窗口共用配置。全部关闭时无法开始识别。开关控制保留的结果，百度仍解析整页。</html:p>
+  </groupbox>
+  <groupbox>
+    <html:h2>开始提取</html:h2>
+    <html:p class="figureextract-pref-help">打开 PDF，点击阅读器工具栏中的「图表公式」，选择类型和页码后开始识别。所选页面会上传百度，并使用账户 API 额度。</html:p>
+  </groupbox>
+</vbox>

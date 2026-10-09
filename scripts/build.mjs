@@ -18,7 +18,8 @@ async function collect(directory, prefix = '') {
 await collect(path.join(root, 'addon'));
 for (const [name, entry, globalName] of [
   ['plugin', 'src/plugin.ts', 'FigureExtract'],
-  ['ui', 'src/ui.ts', undefined]
+  ['ui', 'src/ui.ts', undefined],
+  ['preferences', 'src/preferences.ts', 'FigureExtractPreferences']
 ]) {
   const result = await build({
     absWorkingDir: root, entryPoints: [entry], bundle: true, write: false,

@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Zotero Figure Extract",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "使用百度 PaddleOCR-VL 1.6 识别图、表和公式，支持独立开关。",
   "author": "Achuan",
   "icons": {

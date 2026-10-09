@@ -16,6 +16,7 @@ const activeTasks = new Set<Promise<unknown>>();
 const verificationControllers = new Set<AbortController>();
 const toolbarButtons = new Set<Element>();
 let started = false;
+let preferencesPaneID: string | undefined;
 
 function showError(error: unknown): void {
   host.zotero.alert(host.mainWindow(), 'Zotero Figure Extract', error instanceof Error ? error.message : String(error));
@@ -166,12 +167,26 @@ export function onMainWindowUnload(win: Window): void {
 }
 export async function startup(): Promise<void> {
   await host.wait();
+  preferencesPaneID = await host.zotero.PreferencePanes.register({
+    pluginID: PLUGIN_ID,
+    id: 'figureextract-preferences',
+    label: 'Figure Extract',
+    image: 'chrome://figureextract/content/icons/icon-48.png',
+    src: 'chrome://figureextract/content/preferences.xhtml',
+    scripts: ['chrome://figureextract/content/preferences.js'],
+    stylesheets: ['chrome://figureextract/content/preferences.css'],
+    helpURL: 'https://github.com/Achuan-2/zotero-figure-extract'
+  });
   started = true;
   host.zotero.Reader.registerEventListener('renderToolbar', onToolbar, PLUGIN_ID);
   for (const win of host.zotero.getMainWindows()) onMainWindowLoad(win);
 }
 export async function shutdown(): Promise<void> {
   started = false;
+  if (preferencesPaneID) {
+    host.zotero.PreferencePanes.unregister(preferencesPaneID);
+    preferencesPaneID = undefined;
+  }
   host.zotero.Reader.unregisterEventListener('renderToolbar', onToolbar);
   for (const service of services.values()) service.cancel();
   for (const controller of verificationControllers) controller.abort();

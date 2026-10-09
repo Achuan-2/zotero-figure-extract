@@ -1,6 +1,9 @@
 /** Validate the install-time requirements enforced by Zotero's ExtensionData. */
 export function validatePackage(files) {
-  for (const name of ['manifest.json', 'bootstrap.js', 'chrome/content/plugin.js', 'chrome/content/ui.js']) {
+  for (const name of [
+    'manifest.json', 'bootstrap.js', 'chrome/content/plugin.js', 'chrome/content/ui.js',
+    'chrome/content/preferences.xhtml', 'chrome/content/preferences.js', 'chrome/content/preferences.css'
+  ]) {
     if (!files[name]?.length) throw new Error(`安装包缺少文件：${name}`);
   }
   const manifest = JSON.parse(new TextDecoder().decode(files['manifest.json']));
