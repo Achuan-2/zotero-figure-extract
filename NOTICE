@@ -1,0 +1,5 @@
+Zotero Figure Extract
+参考 MuiseDestiny/zotero-figure 的插件生命周期、PDF 阅读器集成和裁图思路。
+参考源码位于 参考/zotero-figure，原项目使用 AGPL-3.0-or-later。
+本插件同样以 AGPL-3.0-or-later 发布，未包含原项目的本地模型或推理代码。
+https://github.com/MuiseDestiny/zotero-figure

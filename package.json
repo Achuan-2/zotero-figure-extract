@@ -1,0 +1,24 @@
+{
+  "name": "zotero-figure-extract",
+  "version": "0.1.1",
+  "private": true,
+  "description": "使用百度 PaddleOCR-VL 1.6 提取 Zotero PDF 中的图、表和公式",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Achuan-2/zotero-figure-extract.git"
+  },
+  "homepage": "https://github.com/Achuan-2/zotero-figure-extract",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12",
+    "fflate": "^0.8.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "@types/node": "^22.19.0"
+  }
+}

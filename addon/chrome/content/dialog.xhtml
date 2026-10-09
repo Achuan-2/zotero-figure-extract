@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Zotero Figure Extract</title>
+    <link rel="stylesheet" href="chrome://figureextract/content/style.css" />
+    <script src="chrome://figureextract/content/ui.js" defer="defer"></script>
+  </head>
+  <body>
+    <header>
+      <div><span class="eyebrow">ZOTERO FIGURE EXTRACT</span><h1>图、表、公式提取</h1><p id="document-title"></p></div>
+      <span class="model">PaddleOCR-VL 1.6</span>
+    </header>
+    <main>
+      <aside>
+        <section id="recognition-controls">
+          <h2>识别内容</h2>
+          <div class="type-switches">
+            <label><input type="checkbox" id="recognize-figure" />图</label>
+            <label><input type="checkbox" id="recognize-table" />表</label>
+            <label><input type="checkbox" id="recognize-formula" />公式</label>
+          </div>
+          <h2>识别范围</h2>
+          <select id="scope" aria-label="识别范围">
+            <option value="current">当前页</option><option value="range">指定页码</option><option value="all">全文</option>
+          </select>
+          <input type="text" id="page-range" placeholder="例如 1-5,8" aria-label="页码范围" hidden="hidden" />
+          <p id="page-count" class="help"></p>
+          <label class="force"><input type="checkbox" id="force" />重新调用 API，忽略缓存</label>
+          <p class="help">点击开始后，所选 PDF 页面将上传百度进行解析，调用使用账户的 API 额度。关闭某类会跳过该类结果的提取；百度仍默认解析整页。</p>
+          <div class="run-actions"><button type="button" id="start" class="primary">开始识别</button><button type="button" id="cancel" disabled="disabled">取消</button></div>
+          <progress id="progress" value="0" max="1"></progress>
+        </section>
+        <details id="settings">
+          <summary>百度 OCR 设置</summary>
+          <p class="help">开通「文档解析（PaddleOCR-VL）」后，填写应用凭据。</p>
+          <label class="field">API Key<input id="api-key" type="password" autocomplete="off" /></label>
+          <label class="field">Secret Key<input id="secret-key" type="password" autocomplete="off" /></label>
+          <div class="settings-actions"><button type="button" id="save-settings">保存设置</button><button type="button" id="verify">保存并验证</button></div>
+          <p id="credentials-status" class="help" role="status">凭据保存在 Zotero 的登录管理器中。</p>
+        </details>
+        <p id="status" role="status" aria-live="polite">正在读取本地结果…</p>
+      </aside>
+      <section id="workspace">
+        <div class="results-toolbar">
+          <div id="filters" role="group" aria-label="结果类型筛选">
+            <button type="button" data-filter="all" aria-pressed="true">全部</button>
+            <button type="button" data-filter="figure" aria-pressed="false">图</button>
+            <button type="button" data-filter="table" aria-pressed="false">表</button>
+            <button type="button" data-filter="formula" aria-pressed="false">公式</button>
+          </div>
+          <select id="export" aria-label="导出结果"><option value="">导出结果…</option><option value="markdown">Markdown（含图片）</option><option value="json">JSON（含图片和坐标）</option></select>
+        </div>
+        <p id="result-count" class="help"></p>
+        <div id="results"></div>
+        <div id="empty"><span>图 · 表 · 公式</span><h2>从论文中提取研究内容</h2><p>选择需要识别的类型和页码，点击「开始识别」。结果会保存在本地，可复制文本、保存图片或定位原文。</p></div>
+      </section>
+    </main>
+  </body>
+</html>
