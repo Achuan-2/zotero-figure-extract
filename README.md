@@ -1,76 +1,57 @@
 # Zotero Figure Extract
 
+[![版本](https://img.shields.io/github/v/release/Achuan-2/zotero-figure-extract?label=version)](https://github.com/Achuan-2/zotero-figure-extract/releases/latest)
+[![许可证](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
+
 <img src="assets/icon.png" width="96" alt="Zotero Figure Extract 图标">
 
-在 PDF 阅读器左侧栏内提取图、表和公式，默认使用 AI Studio PaddleOCR-VL-1.6 单 Key 接口，也支持切换至百度智能云文档解析服务。设置页面和侧栏均提供获取 API Key 链接。详见 [接口配置](docs/interfaces.md)。
+**在 Zotero 中提取论文里的图、表和公式，让文献整理更轻松。**
 
-项目借鉴 [zotero-figure](https://github.com/MuiseDestiny/zotero-figure) 的阅读器集成、结果卡片和裁图思路，在独立目录中实现，不改动 `参考/zotero-figure`。采用 AGPL-3.0-or-later，见 LICENSE 和 NOTICE。
+Zotero Figure Extract 是一款面向文献阅读与科研资料整理的 Zotero 插件。借助 AI Studio 或百度智能云的 PaddleOCR-VL 文档解析服务，你可以直接在 PDF 阅读器侧栏提取图片、表格和公式，预览结果、复制内容、保存图片，并导出到自己的笔记或资料中。
 
-最新安装包：[GitHub Releases](https://github.com/Achuan-2/zotero-figure-extract/releases/latest)。
+[下载安装](https://github.com/Achuan-2/zotero-figure-extract/releases/latest) · [更新记录](CHANGELOG.md) · [反馈问题](https://github.com/Achuan-2/zotero-figure-extract/issues)
 
-## 功能
+## 功能亮点
 
-- **图、表、公式三个独立开关**，默认全部开启，保存选项。全部关闭时不能开始任务。
-- 默认全部页，也支持当前页、指定页码（如 `1-5,8`）识别；页面顺序处理，显示进度并支持取消。
-- 提取图片和统计图区域、表格内容（Markdown 或 HTML 原文）、行间及行内公式文本 / LaTeX；同时生成本地 PNG 裁图。
-- 卡片预览、按类型筛选、复制识别文本、保存 PNG、定位 PDF 原文、手动添加 Zotero 图像标注。
-- 导出 Markdown / JSON，内嵌图片，JSON 保留页码和原文坐标。导出当前筛选下的结果。
-- 按接口分别缓存解析结果；切换识别类型可以复用缓存。PDF 路径、大小或修改时间变化后，旧缓存失效。
-- 单页处理成功才更新结果；取消或后续页面失败会保留已完成页面。重新处理只替换该页启用类型的结果，不删除其他类型。
-- 凭据保存在 Zotero / Firefox 登录管理器，Secret Key 不写入插件偏好、缓存或导出文件。网络请求不经过会打印请求 URL 的 Zotero HTTP 调试封装。
+- **图、表、公式按需提取**：三种类型可独立选择，提取图片与统计图、表格内容以及行间和行内公式，并生成对应区域的裁图。
+- **灵活选择识别范围**：支持当前页、指定页码或全文识别，既适合快速摘取某一页，也方便集中整理整篇论文。
+- **卡片预览与类型筛选**：在阅读器侧栏中浏览提取结果，按图、表或公式筛选，随时定位到 PDF 原文核对。
+- **复制文字，保存图片**：复制识别文本、表格内容或公式 LaTeX，也可以将裁图保存为 PNG，用于笔记和汇报。
+- **添加 Zotero 标注**：将需要保留的内容手动添加为 PDF 图像标注，方便在后续阅读中回顾。
+- **导出整理结果**：支持导出包含图片的 Markdown 或 JSON，并按当前筛选范围导出。
+- **保留识别成果**：结果保存在本地，再次打开时可继续查看；识别时显示进度，支持取消，并保留已完成页面的结果。
 
-## 安装与使用
+## 安装
 
-1. 在 Zotero 中选择「工具 → 插件」，使用齿轮菜单中的「从文件安装插件」，选择 `dist/zotero-figure-extract.xpi`。
-2. 在 Zotero 设置中选择「Figure Extract」，默认使用 AI Studio，点击「获取 AI Studio API Key」并填写单 Key，无需 Secret Key；也可切换至百度智能云并填写应用的 API Key 和 Secret Key。两套凭据独立保存，百度智能云需要开通 **文档解析（PaddleOCR-VL）**。
-3. 「保存并验证」只检查所选接口的鉴权，不上传 PDF；服务权限及剩余额度由实际解析请求检查。
-4. 打开 PDF，展开左侧栏，点击顶部「图表公式」图标页签，直接在侧栏选择类型、页码并查看识别结果；工具菜单和文库右键菜单也会打开该侧栏，不创建独立提取窗口。文献有多个 PDF 时默认打开第一个 PDF，请直接打开目标 PDF 以明确选择。
-5. 选择类型和页码，点击「开始识别」。默认识别全部页；指定页码从 **1** 开始。
+1. 前往 [GitHub Releases](https://github.com/Achuan-2/zotero-figure-extract/releases/latest)，下载 `.xpi` 插件安装包。
+2. 在 Zotero 中打开「工具 → 插件」，点击齿轮菜单，选择「从文件安装插件」。
+3. 选择下载的 `.xpi` 文件，完成安装。
 
-插件启用后给已打开的 PDF 补齐侧栏入口，不添加阅读器工具栏按钮。
+安装后，PDF 阅读器左侧栏顶部会显示「图表公式」图标页签，识别控件和结果均在侧栏内显示。
 
-## 独立开关的实际含义
+## 快速开始
 
-百度官方 API 默认解析整页的图片、表格和公式，没有三个类型都能独立关闭的服务端参数。因此，插件的开关控制**是否提取、裁图和保存相应类型的结果**。关闭某类不会删除之前保存的该类结果，也不代表百度服务不处理它或按类型减免费用。
+### 配置识别服务
 
-「图」开启时传入 `analysis_chart=true`，请求统计图表内容解析；关闭时设为 `false`。表格和公式通过 API 返回的 `layouts.type` 筛选。图片描述是百度返回的原始内容，公式内容按返回值保留。图注按页面内邻近的 `figure_title` 元素关联，复杂双栏排版可能需要人工核对。
+默认使用 **AI Studio PaddleOCR-VL-1.6**。在 Zotero 设置中选择「Figure Extract」，点击「获取 AI Studio API Key」，填写 API Key / Access Token 即可，无需 Secret Key。也可切换百度智能云，开通 **文档解析（PaddleOCR-VL）** 后填写应用的 API Key 和 Secret Key；两套凭据分别保存。设置页和识别侧栏都提供对应平台的获取 Key 链接，详细说明见 [接口配置](docs/interfaces.md)。
 
-首次仅识别表 / 公式时，缓存不含统计图内容解析；之后开启「图」会重新调用一次 API。已包含统计图解析的缓存可以用于任意类型组合。勾选「重新调用 API，忽略缓存」会重新上传页面。
+### 提取与整理
 
-## API 与数据路径
+1. 打开目标 PDF，展开左侧栏，点击顶部的「图表公式」图标页签。也可以从文库右键菜单或工具菜单打开该侧栏。
+2. 勾选需要提取的图、表或公式，选择识别范围。默认识别全部页；指定页码时可填写 `1-5,8`，页码从 1 开始。
+3. 点击「开始识别」，等待结果显示。
+4. 浏览结果卡片，按需复制文本、保存图片、定位原文或添加标注；需要统一整理时，使用「导出结果…」。
 
-AI Studio 使用 [官方异步 API](https://ai.baidu.com/ai-doc/AISTUDIO/fml7mozw5)，Bearer 单 Key 提交 PNG，模型设为 `PaddleOCR-VL-1.6`，查询任务后下载 JSONL 并转换版面坐标。表格 HTML 作为文本展示，不执行 HTML。
+## 使用说明
 
-百度智能云按照 [百度官方文档](https://ai.baidu.com/ai-doc/OCR/Qmncwhwdt) 实现：
+识别需要联网，所选 PDF 页面会上传至所选接口平台，并使用你账户的服务额度。类型开关决定保留哪些提取结果，不影响服务对整页的解析，也不代表按类型减少费用。
 
-- OAuth：`POST https://aip.baidubce.com/oauth/2.0/token`，API Key / Secret Key 放在请求体中。
-- 提交：`POST https://aip.baidubce.com/rest/2.0/brain/online/v2/paddle-vl-parser/task`，传入单页 PNG 的 `file_data` 和 `file_name`。
-- 查询：`POST .../task/query`，每 5 秒轮询一次，最长等待 10 分钟。
-- 成功后下载 `parse_result_url` 的 JSON，用 `pages[].layouts`、`tables`、`images`、`meta` 转换结果。
+提取结果保存在本地，不随 Zotero 自动同步；手动添加的 PDF 标注遵循 Zotero 自身的同步设置。删除结果卡片不会删除已添加的标注。
 
-PDF 页面通过 Zotero 阅读器自带的 PDF.js 渲染，最长边不超过 2400 像素、画布不超过约 400 万像素。为保证原文坐标对应，关闭 API 的旋转矫正、扭曲矫正、水印和印章擦除。检测到不一致的尺寸比例或服务端页面旋转时会停止，避免生成错误裁图。
+复杂排版下的图注、表格和公式可能需要人工核对，可通过「定位原文」快速检查。
 
-本地数据位于 **Zotero 数据目录 / zotero-figure-extract / 文库 ID / PDF 附件 key /**：
+## 反馈与许可
 
-- `page-<从0开始的页码>.json`：百度智能云单页结构化解析缓存。
-- `page-<从0开始的页码>-aistudio.json`：AI Studio 单页缓存，避免不同接口串用。
-- `results.json`：提取结果与内嵌 PNG，通过临时文件原子替换。
+遇到问题或有功能建议，欢迎提交 [Issue](https://github.com/Achuan-2/zotero-figure-extract/issues)。反馈时请附上 Zotero 版本、操作步骤和相关截图，便于复现。
 
-提取缓存不通过 Zotero 自动同步。手动添加到 PDF 的标注作为 Zotero 标注保存，遵循 Zotero 自身的同步行为。删除卡片只删除本地提取结果，不删除已添加的标注。点击开始后所选页面会上传百度，使用账户 API 额度；取消只停止本地等待和后续提交，已提交的云端任务可能继续执行并计费。
-
-## 开发
-
-需要 Node.js 20+ 和 pnpm。源码分为：`domain.ts`（类型与版面转换）、`baidu.ts`（异步 API）、`extraction.ts`（任务和缓存）、`platform.ts`（Zotero / Gecko / PDF.js 适配）、`plugin.ts`（生命周期和入口）、`ui.ts`（侧栏交互）、`reader-entry.ts`（阅读器侧栏适配）、`ocr.ts`（接口选择）、`aistudio.ts`（单 Key 异步 API）。
-
-```powershell
-pnpm install
-pnpm run typecheck
-pnpm test
-pnpm run build
-```
-
-产物为 `dist/zotero-figure-extract.xpi`。构建仅打包独立插件，不读取参考插件模型，不启动 Zotero，也不调用百度 API。插件清单声明 Zotero 7–10；实际阅读器适配使用私有 API，需要在目标 Zotero 版本中确认兼容性。
-
-Zotero 安装器要求 `applications.zotero.update_url` 必须存在，而且必须使用 HTTPS，否则会将插件判定为不可安装。更新地址为 `https://github.com/Achuan-2/zotero-figure-extract/releases/latest/download/update.json`。构建会生成安装包及 `dist/update.json`，更新清单使用对应版本 Release 的固定 XPI 地址，并包含 SHA-256 校验值。发布时必须将 XPI 和 update.json 一并上传到该版本 Release，才能让 Zotero 自动检查更新。构建会验证必填字段和 HTTPS 协议，同时输出含版本号的安装包，便于区分修复后的文件。
-
-测试覆盖 API 提交与轮询、token 刷新、错误与取消、八种开关组合、坐标转换、缓存复用、PDF 更新失效、结果合并及失败恢复。自动测试和打包成功不等于实际 Zotero 安装、界面及百度服务验收通过。
+本项目采用 [AGPL-3.0-or-later](LICENSE) 开源许可。
