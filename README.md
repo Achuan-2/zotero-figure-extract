@@ -1,5 +1,7 @@
 # Zotero Figure Extract
 
+<img src="assets/icon.png" width="96" alt="Zotero Figure Extract 图标">
+
 使用百度智能云「文档解析（PaddleOCR-VL）」API 提取 Zotero PDF 中的图、表和公式。该服务在 2026-10-09 的官方文档中基于 PaddleOCR-VL 1.6；插件调用托管服务，不在本地部署模型，也不通过不存在的版本参数锁定服务端模型。
 
 项目借鉴 [zotero-figure](https://github.com/MuiseDestiny/zotero-figure) 的阅读器集成、结果卡片和裁图思路，在独立目录中实现，不改动 `参考/zotero-figure`。采用 AGPL-3.0-or-later，见 LICENSE 和 NOTICE。

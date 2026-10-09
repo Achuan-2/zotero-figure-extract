@@ -4,6 +4,11 @@
   "version": "0.1.1",
   "description": "使用百度 PaddleOCR-VL 1.6 识别图、表和公式，支持独立开关。",
   "author": "Achuan",
+  "icons": {
+    "48": "chrome/content/icons/icon-48.png",
+    "96": "chrome/content/icons/icon-96.png",
+    "128": "chrome/content/icons/icon-128.png"
+  },
   "homepage_url": "https://github.com/Achuan-2/zotero-figure-extract",
   "applications": {
     "zotero": {
